@@ -396,7 +396,10 @@ button{font-family:inherit;}
 .jurnal-month-label select{
   background:transparent;border:none;color:var(--gold);font-family:var(--font-mono);
   font-size:13px;font-weight:600;cursor:pointer;
+  -webkit-appearance:none;-moz-appearance:none;appearance:none;
+  padding:0;margin:0;text-align:center;text-align-last:center;
 }
+.jurnal-month-label select::-ms-expand{display:none;}
 
 .jurnal-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;position:relative;width:100%;max-width:100%;}
 .jurnal-cal .dow{
@@ -408,7 +411,7 @@ button{font-family:inherit;}
 .jurnal-day{
   position:relative;aspect-ratio:1/0.82;border-radius:10px;padding:8px 9px;
   background:var(--surface-2);border:1px solid var(--border-soft);
-  display:flex;flex-direction:column;justify-content:space-between;
+  display:flex;flex-direction:column;justify-content:space-between;gap:3px;
   cursor:default;transition:border-color .15s ease,transform .12s ease;
   min-width:0;overflow:hidden;
 }
@@ -418,19 +421,24 @@ button{font-family:inherit;}
 .jurnal-day.profit{background:rgba(61,220,132,.10);border-color:rgba(61,220,132,.28);}
 .jurnal-day.loss{background:rgba(255,93,93,.10);border-color:rgba(255,93,93,.28);}
 .jurnal-day.selected{border-color:var(--loss) !important;box-shadow:0 0 0 2px rgba(255,93,93,.25);}
-.jurnal-day .dnum{font-size:10.5px;color:var(--text-3);font-family:var(--font-mono);align-self:flex-end;}
+.jurnal-day .dnum{font-size:10.5px;color:var(--text-3);font-family:var(--font-mono);align-self:flex-end;flex-shrink:0;}
 .jurnal-day .dpnl{
-  font-family:var(--font-mono);font-size:12.5px;font-weight:700;line-height:1.1;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+  font-family:var(--font-mono);font-size:12.5px;font-weight:700;line-height:1.15;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;flex-shrink:0;
 }
 .jurnal-day.profit .dpnl{color:var(--profit);}
 .jurnal-day.loss .dpnl{color:var(--loss);}
 .jurnal-day.today{border-color:var(--gold);}
 @media(max-width:640px){
-  .jurnal-day{padding:6px 7px;}
+  .jurnal-day{padding:5px 6px;aspect-ratio:1/1;gap:2px;}
   .jurnal-day .dpnl{font-size:9.5px;}
+  .jurnal-day .dnum{font-size:9px;}
   .jurnal-cal{gap:4px;}
   .jurnal-month-label{min-width:0;padding:7px 10px;}
+}
+@media(max-width:380px){
+  .jurnal-day .dpnl{font-size:8.5px;}
+  .jurnal-day .dnum{font-size:8px;}
 }
 
 /* legenda profit/loss/hari-ini di atas grid */
