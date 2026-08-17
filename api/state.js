@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     const [stateRaw, heartbeat, logsRaw] = await Promise.all([
       redis.get(K.state),
       redis.get(K.heartbeat),
-      redis.lrange(K.log, 0, 14),
+      redis.lrange(K.log, 0, 29),
     ]);
 
     const state = stateRaw ? (typeof stateRaw === "string" ? JSON.parse(stateRaw) : stateRaw) : null;
