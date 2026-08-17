@@ -821,11 +821,11 @@ input[type=color]{width:42px;height:32px;padding:2px;border-radius:7px;border:1p
           <div class="section-title-row"><h3>Status Sistem</h3></div>
           <p class="sub">Sama Seperti Panel Info Pada Chart MT5</p>
           <div class="info-rows">
-            <div class="info-row"><span class="lab">Symbol</span><span class="val">XAUUSD</span></div>
-            <div class="info-row"><span class="lab">Tipe Akun</span><span class="val badge badge-ok">DEMO</span></div>
+            <div class="info-row"><span class="lab">Symbol</span><span class="val" id="rowSymbol">XAUUSD</span></div>
+            <div class="info-row"><span class="lab">Tipe Akun</span><span class="val badge badge-ok" id="rowAccountType">DEMO</span></div>
             <div class="info-row"><span class="lab">Magic Number</span><span class="val" id="rowMagic">88888</span></div>
             <div class="info-row"><span class="lab">Status Lisensi</span><span class="val" id="rowLicense"><span class="badge badge-ok">VALID</span></span></div>
-            <div class="info-row"><span class="lab">Filter News</span><span class="val badge badge-ok">AMAN</span></div>
+            <div class="info-row"><span class="lab">Filter News</span><span class="val badge badge-ok" id="rowNewsFilter">AMAN</span></div>
             <div class="info-row"><span class="lab">Jam Trading</span><span class="val" id="rowHours">09:00 – 17:30 WIB</span></div>
           </div>
         </div>
@@ -1084,6 +1084,10 @@ const SCHEMA = [
 const state = {};
 SCHEMA.forEach(g=>g.fields.forEach(f=>state[f.k]=f.v));
 state.licenseKey = '';
+state.symbol = 'XAUUSD';
+state.accountType = '';
+state.newsFilterStatus = '';
+state.activeNewsName = '';
 
 /* ============================================================
    RENDER SETTINGS PAGES FROM SCHEMA
@@ -1338,21 +1342,30 @@ const LOG_ICONS = {
   loss:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M4 9l6 6 4-4 6 8"/></svg>',
   warn:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17v.01"/></svg>',
 };
-function pushLog(text, type){
+function pushLog(text, type, atTime){
   type = type || 'info';
   logBox.querySelector('.timeline-empty')?.remove();
   const item = document.createElement('div');
   item.className = `timeline-item type-${type} new`;
-  const time = new Date().toLocaleTimeString('id-ID',{hour12:false});
-  item.innerHTML = `
-    <div class="timeline-dot">${LOG_ICONS[type]}</div>
-    <div class="timeline-body">
-      <span class="timeline-text">${text}</span>
-      <span class="timeline-time">${time}</span>
-    </div>`;
+  const time = new Date(atTime || Date.now()).toLocaleTimeString('id-ID',{hour12:false});
+  const dot = document.createElement('div');
+  dot.className = 'timeline-dot';
+  dot.innerHTML = LOG_ICONS[type] || LOG_ICONS.info;
+  const body = document.createElement('div');
+  body.className = 'timeline-body';
+  const textSpan = document.createElement('span');
+  textSpan.className = 'timeline-text';
+  textSpan.textContent = text; // textContent (bukan innerHTML) supaya log eksekusi order dari EA tidak bisa menyisipkan HTML
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'timeline-time';
+  timeSpan.textContent = time;
+  body.appendChild(textSpan);
+  body.appendChild(timeSpan);
+  item.appendChild(dot);
+  item.appendChild(body);
   logBox.prepend(item);
   setTimeout(()=>item.classList.remove('new'), 400);
-  while(logBox.children.length>8) logBox.removeChild(logBox.lastChild);
+  while(logBox.children.length>30) logBox.removeChild(logBox.lastChild);
 }
 pushLog('Dashboard dimuat — menunggu koneksi data dari EA...', 'info');
 
@@ -1395,6 +1408,33 @@ function render(){
   document.getElementById('rowHours').textContent =
     String(state.startHour).padStart(2,'0')+':'+String(state.startMinute).padStart(2,'0')+' – '+
     String(state.endHour).padStart(2,'0')+':'+String(state.endMinute).padStart(2,'0')+' WIB';
+
+  const rowSymbol = document.getElementById('rowSymbol');
+  if(rowSymbol && state.symbol) rowSymbol.textContent = state.symbol;
+
+  const rowAccType = document.getElementById('rowAccountType');
+  if(rowAccType && state.accountType){
+    rowAccType.textContent = state.accountType;
+    rowAccType.classList.remove('badge-ok','badge-warn','badge-bad');
+    // REAL = uang sungguhan, tandai kuning supaya operator lebih waspada.
+    // DEMO/CONTEST = hijau (aman, tidak ada risiko dana nyata).
+    rowAccType.classList.add(state.accountType === 'REAL' ? 'badge-warn' : 'badge-ok');
+  }
+
+  const rowNews = document.getElementById('rowNewsFilter');
+  if(rowNews && state.newsFilterStatus){
+    rowNews.classList.remove('badge-ok','badge-warn','badge-bad');
+    if(state.newsFilterStatus === 'PAUSE'){
+      rowNews.textContent = 'PAUSE' + (state.activeNewsName ? ' — ' + state.activeNewsName : '');
+      rowNews.classList.add('badge-warn');
+    } else if(state.newsFilterStatus === 'AKTIF'){
+      rowNews.textContent = 'AMAN';
+      rowNews.classList.add('badge-ok');
+    } else { // OFF -- filter tidak diaktifkan operator
+      rowNews.textContent = 'OFF';
+      rowNews.classList.add('badge-ok');
+    }
+  }
 
   updateRunState();
 }
@@ -1469,6 +1509,10 @@ async function pollState(){
       sim.running = !!s.running;
 
       if(s.magicNumber) state.magicNumber = s.magicNumber;
+      if(s.symbol) state.symbol = s.symbol;
+      if(s.accountType) state.accountType = s.accountType;
+      if(s.newsFilterStatus) state.newsFilterStatus = s.newsFilterStatus;
+      if(s.activeNewsName!==undefined) state.activeNewsName = s.activeNewsName;
       if(s.startHour!==undefined) state.startHour = s.startHour;
       if(s.startMinute!==undefined) state.startMinute = s.startMinute;
       if(s.endHour!==undefined) state.endHour = s.endHour;
@@ -1499,8 +1543,8 @@ async function pollState(){
 
     if(Array.isArray(data.logs) && data.logs.length){
       const newest = data.logs.filter(l => l.time > lastLogTimeSeen).sort((a,b)=>a.time-b.time);
-      newest.forEach(l => pushLog(l.text, l.type || 'info'));
-      if(newest.length) lastLogTimeSeen = data.logs[0].time;
+      newest.forEach(l => pushLog(l.text, l.type || 'info', l.time));
+      if(newest.length) lastLogTimeSeen = Math.max(...data.logs.map(l => l.time));
     }
 
     enforceLicenseGate(data);
@@ -1536,10 +1580,18 @@ async function sendCommand(command){
 async function sendConfig(){
   if(!currentAccount || !sessionToken) return;
   try{
+    // Kirim HANYA field yang memang bagian dari SCHEMA (setting yang
+    // benar-benar bisa diubah dari web) + licenseKey. State juga menampung
+    // field read-only dari EA (symbol, accountType, newsFilterStatus, dst)
+    // yang TIDAK boleh ikut terkirim sebagai "config" -- field itu cuma
+    // untuk ditampilkan, bukan untuk dikirim balik/diterapkan EA.
+    const configPayload = { account: currentAccount, licenseKey: state.licenseKey };
+    SCHEMA.forEach(g => g.fields.forEach(f => { configPayload[f.k] = state[f.k]; }));
+
     const r = await fetch(API_BASE + '/api/ea-config', {
       method:'POST',
       headers: authHeaders({'Content-Type':'application/json'}),
-      body: JSON.stringify(Object.assign({}, state, { account: currentAccount }))
+      body: JSON.stringify(configPayload)
     });
     if(r.status === 401) forceLogout('Sesi berakhir — silakan login kembali');
   }catch(err){ /* silent — akan tersinkron di polling berikutnya */ }
