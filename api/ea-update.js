@@ -59,14 +59,11 @@ export default async function handler(req, res) {
       sellLots: Number(body.sellLots ?? 0),
       running: Boolean(body.running ?? false),
       symbol: String(body.symbol ?? "XAUUSD"),
-      accountType: String(body.accountType ?? "UNKNOWN"),
       magicNumber: Number(body.magicNumber ?? 0),
       dailyTargetProfit: Number(body.dailyTargetProfit ?? 0),
       dailyTargetLoss: Number(body.dailyTargetLoss ?? 0),
       statusText: String(body.statusText ?? ""),
       licenseStatus: String(body.licenseStatus ?? "UNKNOWN"),
-      newsFilterStatus: String(body.newsFilterStatus ?? "OFF"),
-      activeNewsName: String(body.activeNewsName ?? ""),
       licenseExpiry: String(body.licenseExpiry ?? ""),
       startHour: Number(body.startHour ?? 0),
       startMinute: Number(body.startMinute ?? 0),
@@ -74,6 +71,8 @@ export default async function handler(req, res) {
       endMinute: Number(body.endMinute ?? 0),
       accountLogin,
       accountServer: String(body.accountServer ?? ""),
+      accountType: String(body.accountType ?? "DEMO"),
+      newsStatus: String(body.newsStatus ?? "AMAN"),
       licenseKeyHash,
       updatedAt: Date.now(),
     };
@@ -82,35 +81,15 @@ export default async function handler(req, res) {
     await redis.set(K.heartbeat, Date.now());
     await redis.sadd(ACCOUNTS_SET, accountLogin);
 
-    // Log aktivitas dari EA: mendukung BEBERAPA baris sekaligus (mis. order
-    // BUY + SELL + TP tercapai, semua terjadi di antara dua sync ~3 detik),
-    // lewat array body.logs. Format lama body.logText/logType (satu baris)
-    // tetap didukung sebagai fallback untuk EA versi lama.
-    const incomingLogs = [];
-    if (Array.isArray(body.logs)) {
-      for (const entry of body.logs) {
-        if (entry && entry.text) {
-          incomingLogs.push({ text: String(entry.text), type: String(entry.type || "info") });
-        }
-      }
-    } else if (body.logText) {
-      incomingLogs.push({ text: String(body.logText), type: String(body.logType || "info") });
-    }
-
-    if (incomingLogs.length) {
-      // lpush menaruh entri baru di kepala list; supaya urutan waktu yang
-      // tampil di dashboard tetap benar (terbaru di atas) untuk beberapa
-      // entri sekaligus, dorong dari yang paling lama ke yang paling baru.
-      const now = Date.now();
-      const entries = incomingLogs.map((l, i) => JSON.stringify({
-        text: l.text,
-        type: l.type,
-        time: now + i, // offset kecil supaya urutan asli EA terjaga saat di-sort by time
-      }));
-      for (const e of entries) {
-        await redis.lpush(K.log, e);
-      }
-      await redis.ltrim(K.log, 0, 49); // simpan 50 entri terakhir
+    // Opsional: EA bisa mengirim satu baris log aktivitas baru sekaligus
+    if (body.logText) {
+      const entry = JSON.stringify({
+        text: String(body.logText),
+        type: String(body.logType || "info"),
+        time: Date.now(),
+      });
+      await redis.lpush(K.log, entry);
+      await redis.ltrim(K.log, 0, 29); // simpan 30 entri terakhir
     }
 
     // Auto-catat P/L hari ini ke Kalender Jurnal (gsp:journal:{account}).
