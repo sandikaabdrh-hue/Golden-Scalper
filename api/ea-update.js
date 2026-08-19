@@ -64,6 +64,12 @@ export default async function handler(req, res) {
       dailyTargetLoss: Number(body.dailyTargetLoss ?? 0),
       statusText: String(body.statusText ?? ""),
       licenseStatus: String(body.licenseStatus ?? "UNKNOWN"),
+      accountType: String(body.accountType ?? ""),
+      newsStatus: String(body.newsStatus ?? ""),
+      lotInitial: Number(body.lotInitial ?? 0),
+      targetCycle: String(body.targetCycle ?? ""),
+      ddAngka: Number(body.ddAngka ?? 0),
+      ddPersen: Number(body.ddPersen ?? 0),
       licenseExpiry: String(body.licenseExpiry ?? ""),
       startHour: Number(body.startHour ?? 0),
       startMinute: Number(body.startMinute ?? 0),
@@ -71,8 +77,6 @@ export default async function handler(req, res) {
       endMinute: Number(body.endMinute ?? 0),
       accountLogin,
       accountServer: String(body.accountServer ?? ""),
-      accountType: String(body.accountType ?? "DEMO"),
-      newsStatus: String(body.newsStatus ?? "AMAN"),
       licenseKeyHash,
       updatedAt: Date.now(),
     };
@@ -81,14 +85,35 @@ export default async function handler(req, res) {
     await redis.set(K.heartbeat, Date.now());
     await redis.sadd(ACCOUNTS_SET, accountLogin);
 
-    // Opsional: EA bisa mengirim satu baris log aktivitas baru sekaligus
-    if (body.logText) {
-      const entry = JSON.stringify({
-        text: String(body.logText),
-        type: String(body.logType || "info"),
-        time: Date.now(),
+    // Log aktivitas eksekusi order — EA versi baru mengirim BEBERAPA baris
+    // log sekaligus lewat body.logs (array), supaya kalau beberapa order
+    // (mis. Buy+Sell grid) tereksekusi di antara dua siklus sync, semuanya
+    // tetap tercatat & tampil real-time di dashboard, bukan cuma yang
+    // terakhir. body.logText/body.logType (field tunggal) tetap didukung
+    // untuk kompatibilitas mundur dengan versi EA lama.
+    const now = Date.now();
+    const incomingLogs = [];
+
+    if (Array.isArray(body.logs)) {
+      // Offset 1ms per entri (urutan sesuai array = urutan eksekusi asli di
+      // EA) supaya tiap log dalam satu batch tetap punya timestamp unik &
+      // berurutan — frontend memfilter log baru dengan `time > lastSeen`,
+      // jadi timestamp yang identik/tidak berurutan bisa bikin urutan
+      // tampilan di timeline sedikit meleset.
+      body.logs.forEach((l, i) => {
+        const text = String(l?.text ?? "").trim();
+        if (!text) return;
+        incomingLogs.push({ text, type: String(l?.type || "info"), time: now + i });
       });
-      await redis.lpush(K.log, entry);
+    } else if (body.logText) {
+      incomingLogs.push({ text: String(body.logText), type: String(body.logType || "info"), time: now });
+    }
+
+    if (incomingLogs.length) {
+      // lpush urutan terakhir dulu, supaya lrange (LIFO) hasilnya tetap
+      // sesuai urutan kejadian aslinya (log paling baru tetap paling atas)
+      const entries = incomingLogs.map((l) => JSON.stringify(l));
+      await redis.lpush(K.log, ...entries.reverse());
       await redis.ltrim(K.log, 0, 29); // simpan 30 entri terakhir
     }
 
