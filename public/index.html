@@ -822,11 +822,15 @@ input[type=color]{width:42px;height:32px;padding:2px;border-radius:7px;border:1p
           <p class="sub">Sama Seperti Panel Info Pada Chart MT5</p>
           <div class="info-rows">
             <div class="info-row"><span class="lab">Symbol</span><span class="val" id="rowSymbol">XAUUSD</span></div>
-            <div class="info-row"><span class="lab">Tipe Akun</span><span class="val" id="rowAccType"><span class="badge badge-ok">DEMO</span></span></div>
+            <div class="info-row"><span class="lab">Tipe Akun</span><span class="val" id="rowAccountType"><span class="badge badge-ok">DEMO</span></span></div>
             <div class="info-row"><span class="lab">Magic Number</span><span class="val" id="rowMagic">88888</span></div>
             <div class="info-row"><span class="lab">Status Lisensi</span><span class="val" id="rowLicense"><span class="badge badge-ok">VALID</span></span></div>
             <div class="info-row"><span class="lab">Filter News</span><span class="val" id="rowNews"><span class="badge badge-ok">AMAN</span></span></div>
             <div class="info-row"><span class="lab">Jam Trading</span><span class="val" id="rowHours">09:00 – 17:30 WIB</span></div>
+            <div class="info-row"><span class="lab">Lot Awal</span><span class="val" id="rowLotInitial">0.01</span></div>
+            <div class="info-row"><span class="lab">Target Cycle</span><span class="val" id="rowTargetCycle">-</span></div>
+            <div class="info-row"><span class="lab">Drawdown Angka</span><span class="val" id="rowDdAngka">0.00</span></div>
+            <div class="info-row"><span class="lab">Drawdown Persen</span><span class="val" id="rowDdPersen">0.00%</span></div>
           </div>
         </div>
       </div>
@@ -1330,7 +1334,6 @@ const sim = {
   buyLots: 0, sellLots: 0,
   running: false,
   online: false,
-  symbol: 'XAUUSD', accountType: 'DEMO', newsStatus: 'AMAN',
 };
 const logBox = document.getElementById('activityLog');
 const LOG_ICONS = {
@@ -1397,19 +1400,29 @@ function render(){
     String(state.startHour).padStart(2,'0')+':'+String(state.startMinute).padStart(2,'0')+' – '+
     String(state.endHour).padStart(2,'0')+':'+String(state.endMinute).padStart(2,'0')+' WIB';
 
-  document.getElementById('rowSymbol').textContent = sim.symbol;
+  document.getElementById('rowSymbol').textContent = state.symbol || '-';
 
-  const rowAccType = document.getElementById('rowAccType');
-  if(rowAccType){
-    const accBadge = sim.accountType === 'REAL' ? 'badge-bad' : (sim.accountType === 'CONTEST' ? 'badge-warn' : 'badge-ok');
-    rowAccType.innerHTML = '<span class="badge '+accBadge+'">'+sim.accountType+'</span>';
-  }
+  const accType = state.accountType || 'DEMO';
+  const accBadgeClass = accType === 'REAL' ? 'badge-bad' : (accType === 'CONTEST' ? 'badge-warn' : 'badge-ok');
+  document.getElementById('rowAccountType').innerHTML = '<span class="badge '+accBadgeClass+'">'+accType+'</span>';
 
-  const rowNews = document.getElementById('rowNews');
-  if(rowNews){
-    const newsSafe = sim.newsStatus === 'AMAN';
-    rowNews.innerHTML = '<span class="badge '+(newsSafe?'badge-ok':'badge-warn')+'">'+sim.newsStatus+'</span>';
-  }
+  const newsStatus = state.newsStatus || 'AMAN';
+  const isNewsSafe = newsStatus === 'AMAN';
+  document.getElementById('rowNews').innerHTML =
+    '<span class="badge '+(isNewsSafe ? 'badge-ok' : 'badge-bad')+'">'+newsStatus+'</span>';
+
+  document.getElementById('rowLotInitial').textContent = Number(state.lotInitial || 0).toFixed(2);
+  document.getElementById('rowTargetCycle').textContent = state.targetCycle || '-';
+
+  const ddAngka = Number(state.ddAngka || 0);
+  const rowDdAngka = document.getElementById('rowDdAngka');
+  rowDdAngka.textContent = ddAngka.toFixed(2);
+  rowDdAngka.style.color = ddAngka < 0 ? 'var(--loss)' : '';
+
+  const ddPersen = Number(state.ddPersen || 0);
+  const rowDdPersen = document.getElementById('rowDdPersen');
+  rowDdPersen.textContent = ddPersen.toFixed(2) + '%';
+  rowDdPersen.style.color = ddPersen > 0 ? 'var(--loss)' : '';
 
   updateRunState();
 }
@@ -1482,9 +1495,6 @@ async function pollState(){
       sim.buyLots = s.buyLots ?? sim.buyLots;
       sim.sellLots = s.sellLots ?? sim.sellLots;
       sim.running = !!s.running;
-      sim.symbol = s.symbol ?? sim.symbol;
-      sim.accountType = s.accountType ?? sim.accountType;
-      sim.newsStatus = s.newsStatus ?? sim.newsStatus;
 
       if(s.magicNumber) state.magicNumber = s.magicNumber;
       if(s.startHour!==undefined) state.startHour = s.startHour;
@@ -1493,6 +1503,17 @@ async function pollState(){
       if(s.endMinute!==undefined) state.endMinute = s.endMinute;
       if(s.dailyTargetProfit) state.dailyProfit = s.dailyTargetProfit;
       if(s.dailyTargetLoss) state.dailyLoss = s.dailyTargetLoss;
+
+      // Field kartu "Status Sistem" -- disalin dari respons server (s) ke
+      // objek state global supaya render() membaca nilai LIVE dari EA,
+      // bukan nilai default lokal yang tidak pernah berubah.
+      if(s.symbol!==undefined) state.symbol = s.symbol;
+      if(s.accountType!==undefined) state.accountType = s.accountType;
+      if(s.newsStatus!==undefined) state.newsStatus = s.newsStatus;
+      if(s.lotInitial!==undefined) state.lotInitial = s.lotInitial;
+      if(s.targetCycle!==undefined) state.targetCycle = s.targetCycle;
+      if(s.ddAngka!==undefined) state.ddAngka = s.ddAngka;
+      if(s.ddPersen!==undefined) state.ddPersen = s.ddPersen;
 
       const statusText = document.getElementById('statusText');
       if(statusText && s.statusText) statusText.textContent = s.statusText;
